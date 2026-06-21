@@ -7,6 +7,7 @@
 // Tested by parse_test.cc
 
 #include "re2-parser/re2/regexp.h"
+#include "re2-parser/re2/regexp.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -21,10 +22,10 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "re2/re2_compat.h"
-#include "re2/pod_array.h"
-#include "re2/walker-inl.h"
-#include "util/utf.h"
+#include "re2-parser/re2/re2_compat.h"
+#include "re2-parser/re2/pod_array.h"
+#include "re2-parser/re2/walker-inl.h"
+#include "re2-parser/util/utf.h"
 
 namespace re2 {
 

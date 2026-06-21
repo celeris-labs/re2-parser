@@ -16,7 +16,7 @@
 #include "re2-parser/re2/pod_array.h"
 #include "re2-parser/re2/regexp.h"
 #include "re2-parser/re2/walker-inl.h"
-#include "util/utf.h"
+#include "re2-parser/util/utf.h"
 
 namespace re2 {
 
