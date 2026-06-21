@@ -9,10 +9,10 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 
-#include "absl/log/absl_log.h"
-#include "absl/strings/string_view.h"
+#include "re2/re2_compat.h"
 #include "re2/pod_array.h"
 #include "re2/regexp.h"
 #include "re2/walker-inl.h"
@@ -23,7 +23,7 @@ namespace re2 {
 // Parses the regexp src and then simplifies it and sets *dst to the
 // string representation of the simplified form.  Returns true on success.
 // Returns false and sets *error (if error != NULL) on error.
-bool Regexp::SimplifyRegexp(absl::string_view src, ParseFlags flags,
+bool Regexp::SimplifyRegexp(std::string_view src, ParseFlags flags,
                             std::string* dst, RegexpStatus* status) {
   Regexp* re = Parse(src, flags, status);
   if (re == NULL)
@@ -97,7 +97,7 @@ bool Regexp::ComputeSimple() {
     case kRegexpRepeat:
       return false;
   }
-  ABSL_LOG(DFATAL) << "Case not handled in ComputeSimple: " << op_;
+  throw std::runtime_error("Case not handled in ComputeSimple: " + std::to_string(op_));
   return false;
 }
 
@@ -225,7 +225,7 @@ Regexp* CoalesceWalker::Copy(Regexp* re) {
 Regexp* CoalesceWalker::ShortVisit(Regexp* re, Regexp* parent_arg) {
   // Should never be called: we use Walk(), not WalkExponential().
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-  ABSL_LOG(DFATAL) << "CoalesceWalker::ShortVisit called";
+  throw std::runtime_error("CoalesceWalker::ShortVisit called");
 #endif
   return re->Incref();
 }
@@ -375,7 +375,7 @@ void CoalesceWalker::DoCoalesce(Regexp** r1ptr, Regexp** r2ptr) {
 
     default:
       nre->Decref();
-      ABSL_LOG(DFATAL) << "DoCoalesce failed: r1->op() is " << r1->op();
+      throw std::runtime_error("DoCoalesce failed: r1->op() is " + std::to_string(r1->op()));
       return;
   }
 
@@ -436,7 +436,7 @@ void CoalesceWalker::DoCoalesce(Regexp** r1ptr, Regexp** r2ptr) {
 
     default:
       nre->Decref();
-      ABSL_LOG(DFATAL) << "DoCoalesce failed: r2->op() is " << r2->op();
+      throw std::runtime_error("DoCoalesce failed: r2->op() is " + std::to_string(r2->op()));
       return;
   }
 
@@ -451,7 +451,7 @@ Regexp* SimplifyWalker::Copy(Regexp* re) {
 Regexp* SimplifyWalker::ShortVisit(Regexp* re, Regexp* parent_arg) {
   // Should never be called: we use Walk(), not WalkExponential().
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-  ABSL_LOG(DFATAL) << "SimplifyWalker::ShortVisit called";
+  throw std::runtime_error("SimplifyWalker::ShortVisit called");
 #endif
   return re->Incref();
 }
@@ -567,7 +567,7 @@ Regexp* SimplifyWalker::PostVisit(Regexp* re,
     }
   }
 
-  ABSL_LOG(ERROR) << "Simplify case not handled: " << re->op();
+  throw std::runtime_error("Simplify case not handled: " + std::to_string(re->op()));
   return re->Incref();
 }
 
@@ -664,8 +664,9 @@ Regexp* SimplifyWalker::SimplifyRepeat(Regexp* re, int min, int max,
   if (nre == NULL) {
     // Some degenerate case, like min > max, or min < max < 0.
     // This shouldn't happen, because the parser rejects such regexps.
-    ABSL_LOG(DFATAL) << "Malformed repeat of " << re->ToString()
-                     << " min " << min << " max " << max;
+    throw std::runtime_error("Malformed repeat of " + re->ToString() +
+                             " min " + std::to_string(min) +
+                             " max " + std::to_string(max));
     return new Regexp(kRegexpNoMatch, f);
   }
 

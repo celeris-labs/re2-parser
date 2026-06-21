@@ -14,10 +14,9 @@
 // the Visitor pattern is recursive.
 
 #include <stack>
+#include <stdexcept>
 
-#include "absl/base/macros.h"
-#include "absl/log/absl_check.h"
-#include "absl/log/absl_log.h"
+#include "re2/re2_compat.h"
 #include "re2/regexp.h"
 
 namespace re2 {
@@ -148,7 +147,7 @@ template<typename T> Regexp::Walker<T>::~Walker() {
 // Logs DFATAL if stack is not already clear.
 template<typename T> void Regexp::Walker<T>::Reset() {
   if (!stack_.empty()) {
-    ABSL_LOG(DFATAL) << "Stack not empty.";
+    throw std::runtime_error("Stack not empty.");
     while (!stack_.empty()) {
       if (stack_.top().re->nsub_ > 1)
         delete[] stack_.top().child_args;
@@ -162,7 +161,7 @@ template<typename T> T Regexp::Walker<T>::WalkInternal(Regexp* re, T top_arg,
   Reset();
 
   if (re == NULL) {
-    ABSL_LOG(DFATAL) << "Walk NULL";
+    throw std::runtime_error("Walk NULL");
     return top_arg;
   }
 

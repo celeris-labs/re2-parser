@@ -1,3 +1,4 @@
+
 // Copyright 2006 The RE2 Authors.  All Rights Reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -13,15 +14,14 @@
 
 #include <algorithm>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
-#include "absl/base/call_once.h"
-#include "absl/base/macros.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/log/absl_check.h"
-#include "absl/log/absl_log.h"
-#include "absl/synchronization/mutex.h"
+#include <mutex>
+#include <unordered_map>
+
+#include "re2/re2_compat.h"
 #include "re2/pod_array.h"
 #include "re2/walker-inl.h"
 #include "util/utf.h"
@@ -47,7 +47,7 @@ Regexp::Regexp(RegexpOp op, ParseFlags parse_flags)
 // required Decref() to have handled them for us.
 Regexp::~Regexp() {
   if (nsub_ > 0)
-    ABSL_LOG(DFATAL) << "Regexp not destroyed.";
+    throw std::runtime_error("Regexp not destroyed.");
 
   switch (op_) {
     default:
@@ -78,16 +78,16 @@ bool Regexp::QuickDestroy() {
 
 // Similar to EmptyStorage in re2.cc.
 struct RefStorage {
-  absl::Mutex ref_mutex;
-  absl::flat_hash_map<Regexp*, int> ref_map;
+  std::mutex ref_mutex;
+  std::unordered_map<Regexp*, int> ref_map;
 };
 alignas(RefStorage) static char ref_storage[sizeof(RefStorage)];
 
-static inline absl::Mutex* ref_mutex() {
+static inline std::mutex* ref_mutex() {
   return &reinterpret_cast<RefStorage*>(ref_storage)->ref_mutex;
 }
 
-static inline absl::flat_hash_map<Regexp*, int>* ref_map() {
+static inline std::unordered_map<Regexp*, int>* ref_map() {
   return &reinterpret_cast<RefStorage*>(ref_storage)->ref_map;
 }
 
@@ -95,20 +95,20 @@ int Regexp::Ref() {
   if (ref_ < kMaxRef)
     return ref_;
 
-  absl::MutexLock l(ref_mutex());
+  std::lock_guard<std::mutex> l(*ref_mutex());
   return (*ref_map())[this];
 }
 
 // Increments reference count, returns object as convenience.
 Regexp* Regexp::Incref() {
   if (ref_ >= kMaxRef-1) {
-    static absl::once_flag ref_once;
-    absl::call_once(ref_once, []() {
+    static std::once_flag ref_once;
+    std::call_once(ref_once, []() {
       (void) new (ref_storage) RefStorage;
     });
 
     // Store ref count in overflow map.
-    absl::MutexLock l(ref_mutex());
+    std::lock_guard<std::mutex> l(*ref_mutex());
     if (ref_ == kMaxRef) {
       // already overflowed
       (*ref_map())[this]++;
@@ -128,7 +128,7 @@ Regexp* Regexp::Incref() {
 void Regexp::Decref() {
   if (ref_ == kMaxRef) {
     // Ref count is stored in overflow map.
-    absl::MutexLock l(ref_mutex());
+    std::lock_guard<std::mutex> l(*ref_mutex());
     int r = (*ref_map())[this] - 1;
     if (r < kMaxRef) {
       ref_ = static_cast<uint16_t>(r);
@@ -156,7 +156,7 @@ void Regexp::Destroy() {
     Regexp* re = stack;
     stack = re->down_;
     if (re->ref_ != 0)
-      ABSL_LOG(DFATAL) << "Bad reference count " << re->ref_;
+      throw std::runtime_error("Bad reference count " + std::to_string(re->ref_));
     if (re->nsub_ > 0) {
       Regexp** subs = re->sub();
       for (int i = 0; i < re->nsub_; i++) {
@@ -181,7 +181,7 @@ void Regexp::Destroy() {
 }
 
 void Regexp::AddRuneToString(Rune r) {
-  ABSL_DCHECK(op_ == kRegexpLiteralString);
+  RE2_DCHECK(op_ == kRegexpLiteralString);
   if (nrunes_ == 0) {
     // start with 8
     runes_ = new Rune[8];
@@ -326,6 +326,11 @@ Regexp* Regexp::NewLiteral(Rune rune, ParseFlags flags) {
   re->rune_ = rune;
   return re;
 }
+Regexp* Regexp::NewToken(int token_id, ParseFlags flags) {
+  Regexp* re = new Regexp(token, flags);
+  re->rune_ = token_id;
+  return re;
+}
 
 Regexp* Regexp::LiteralString(Rune* runes, int nrunes, ParseFlags flags) {
   if (nrunes <= 0)
@@ -423,7 +428,7 @@ static bool TopEqual(Regexp* a, Regexp* b) {
     }
   }
 
-  ABSL_LOG(DFATAL) << "Unexpected op in Regexp::Equal: " << a->op();
+  throw std::runtime_error("Unexpected op in Regexp::Equal: " + std::to_string(a->op()));
   return 0;
 }
 
@@ -498,7 +503,7 @@ bool Regexp::Equal(Regexp* a, Regexp* b) {
     if (n == 0)
       break;
 
-    ABSL_DCHECK_GE(n, size_t{2});
+    RE2_DCHECK_GE(n, size_t{2});
     a = stk[n-2];
     b = stk[n-1];
     stk.resize(n-2);
@@ -527,7 +532,7 @@ static const char *kErrorStrings[] = {
 };
 
 std::string RegexpStatus::CodeText(enum RegexpStatusCode code) {
-  if (code < 0 || code >= ABSL_ARRAYSIZE(kErrorStrings))
+  if (code < 0 || code >= RE2_ARRAYSIZE(kErrorStrings))
     code = kRegexpInternalError;
   return kErrorStrings[code];
 }
@@ -564,7 +569,7 @@ class NumCapturesWalker : public Regexp::Walker<Ignored> {
   virtual Ignored ShortVisit(Regexp* re, Ignored ignored) {
     // Should never be called: we use Walk(), not WalkExponential().
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    ABSL_LOG(DFATAL) << "NumCapturesWalker::ShortVisit called";
+    throw std::runtime_error("NumCapturesWalker::ShortVisit called");
 #endif
     return ignored;
   }
@@ -611,7 +616,7 @@ class NamedCapturesWalker : public Regexp::Walker<Ignored> {
   virtual Ignored ShortVisit(Regexp* re, Ignored ignored) {
     // Should never be called: we use Walk(), not WalkExponential().
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    ABSL_LOG(DFATAL) << "NamedCapturesWalker::ShortVisit called";
+    throw std::runtime_error("NamedCapturesWalker::ShortVisit called");
 #endif
     return ignored;
   }
@@ -655,7 +660,7 @@ class CaptureNamesWalker : public Regexp::Walker<Ignored> {
   virtual Ignored ShortVisit(Regexp* re, Ignored ignored) {
     // Should never be called: we use Walk(), not WalkExponential().
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    ABSL_LOG(DFATAL) << "CaptureNamesWalker::ShortVisit called";
+    throw std::runtime_error("CaptureNamesWalker::ShortVisit called");
 #endif
     return ignored;
   }
@@ -995,7 +1000,7 @@ CharClass* CharClassBuilder::GetCharClass() {
   for (iterator it = begin(); it != end(); ++it)
     cc->ranges_[n++] = *it;
   cc->nranges_ = n;
-  ABSL_DCHECK_LE(n, static_cast<int>(ranges_.size()));
+  RE2_DCHECK_LE(n, static_cast<int>(ranges_.size()));
   cc->nrunes_ = nrunes_;
   cc->folds_ascii_ = FoldsASCII();
   return cc;

@@ -5,6 +5,9 @@
 #ifndef RE2_REGEXP_H_
 #define RE2_REGEXP_H_
 
+// Forward declaration for friend access
+class NFA;
+
 // --- SPONSORED LINK --------------------------------------------------
 // If you want to use this library for regular expression matching,
 // you should use re2/re2.h, which provides a class RE2 that
@@ -92,16 +95,16 @@
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
 
-#include "absl/log/absl_check.h"
-#include "absl/log/absl_log.h"
-#include "absl/strings/string_view.h"
+#include "re2/re2_compat.h"
 #include "util/utf.h"
 
 namespace re2 {
 
 // Keep in sync with string list kOpcodeNames[] in testing/dump.cc
 enum RegexpOp {
+    token,
   // Matches no strings.
   kRegexpNoMatch = 1,
 
@@ -196,10 +199,10 @@ class RegexpStatus {
   ~RegexpStatus() { delete tmp_; }
 
   void set_code(RegexpStatusCode code) { code_ = code; }
-  void set_error_arg(absl::string_view error_arg) { error_arg_ = error_arg; }
+  void set_error_arg(std::string_view error_arg) { error_arg_ = error_arg; }
   void set_tmp(std::string* tmp) { delete tmp_; tmp_ = tmp; }
   RegexpStatusCode code() const { return code_; }
-  absl::string_view error_arg() const { return error_arg_; }
+  std::string_view error_arg() const { return error_arg_; }
   bool ok() const { return code() == kRegexpSuccess; }
 
   // Copies state from status.
@@ -215,7 +218,7 @@ class RegexpStatus {
 
  private:
   RegexpStatusCode code_;        // Kind of error.
-  absl::string_view error_arg_;  // Piece of regexp containing syntax error.
+  std::string_view error_arg_;  // Piece of regexp containing syntax error.
   std::string* tmp_;             // Temporary storage, possibly for error_arg_.
 
   RegexpStatus(const RegexpStatus&) = delete;
@@ -228,6 +231,7 @@ class Prog;
 struct RuneRange {
   RuneRange() : lo(0), hi(0) { }
   RuneRange(int l, int h) : lo(l), hi(h) { }
+  bool operator==(const RuneRange& o) const { return lo == o.lo && hi == o.hi; }
   Rune lo;
   Rune hi;
 };
@@ -335,39 +339,39 @@ class Regexp {
   }
 
   int min() {
-    ABSL_DCHECK_EQ(op_, kRegexpRepeat);
+    RE2_DCHECK_EQ(op_, kRegexpRepeat);
     return min_;
   }
   int max() {
-    ABSL_DCHECK_EQ(op_, kRegexpRepeat);
+    RE2_DCHECK_EQ(op_, kRegexpRepeat);
     return max_;
   }
   Rune rune() {
-    ABSL_DCHECK_EQ(op_, kRegexpLiteral);
+      //check if literal/token
     return rune_;
   }
   CharClass* cc() {
-    ABSL_DCHECK_EQ(op_, kRegexpCharClass);
+    RE2_DCHECK_EQ(op_, kRegexpCharClass);
     return cc_;
   }
   int cap() {
-    ABSL_DCHECK_EQ(op_, kRegexpCapture);
+    RE2_DCHECK_EQ(op_, kRegexpCapture);
     return cap_;
   }
   const std::string* name() {
-    ABSL_DCHECK_EQ(op_, kRegexpCapture);
+    RE2_DCHECK_EQ(op_, kRegexpCapture);
     return name_;
   }
   Rune* runes() {
-    ABSL_DCHECK_EQ(op_, kRegexpLiteralString);
+    RE2_DCHECK_EQ(op_, kRegexpLiteralString);
     return runes_;
   }
   int nrunes() {
-    ABSL_DCHECK_EQ(op_, kRegexpLiteralString);
+    RE2_DCHECK_EQ(op_, kRegexpLiteralString);
     return nrunes_;
   }
   int match_id() {
-    ABSL_DCHECK_EQ(op_, kRegexpHaveMatch);
+    RE2_DCHECK_EQ(op_, kRegexpHaveMatch);
     return match_id_;
   }
 
@@ -380,7 +384,7 @@ class Regexp {
   // Parses string s to produce regular expression, returned.
   // Caller must release return value with re->Decref().
   // On failure, sets *status (if status != NULL) and returns NULL.
-  static Regexp* Parse(absl::string_view s, ParseFlags flags,
+  static Regexp* Parse(std::string_view s, ParseFlags flags,
                        RegexpStatus* status);
 
   // Returns a _new_ simplified version of the current regexp.
@@ -397,7 +401,7 @@ class Regexp {
   // Parses the regexp src and then simplifies it and sets *dst to the
   // string representation of the simplified form.  Returns true on success.
   // Returns false and sets *status (if status != NULL) on parse error.
-  static bool SimplifyRegexp(absl::string_view src, ParseFlags flags,
+  static bool SimplifyRegexp(std::string_view src, ParseFlags flags,
                              std::string* dst, RegexpStatus* status);
 
   // Returns the number of capturing groups in the regexp.
@@ -429,6 +433,7 @@ class Regexp {
   static Regexp* Capture(Regexp* sub, ParseFlags flags, int cap);
   static Regexp* Repeat(Regexp* sub, ParseFlags flags, int min, int max);
   static Regexp* NewLiteral(Rune rune, ParseFlags flags);
+  static Regexp* NewToken(int token_id, ParseFlags flags); 
   static Regexp* NewCharClass(CharClass* cc, ParseFlags flags);
   static Regexp* LiteralString(Rune* runes, int nrunes, ParseFlags flags);
   static Regexp* HaveMatch(int match_id, ParseFlags flags);
@@ -482,6 +487,8 @@ class Regexp {
   static void FUZZING_ONLY_set_maximum_repeat_count(int i);
 
  private:
+  friend class ::NFA;
+
   // Constructor allocates vectors as appropriate for operator.
   explicit Regexp(RegexpOp op, ParseFlags parse_flags);
 
@@ -495,7 +502,7 @@ class Regexp {
   class ParseState;
 
   friend class ParseState;
-  friend bool ParseCharClass(absl::string_view* s, Regexp** out_re,
+  friend bool ParseCharClass(std::string_view* s, Regexp** out_re,
                              RegexpStatus* status);
 
   // Helper for testing [sic].
@@ -544,7 +551,7 @@ class Regexp {
 
   // Allocate space for n sub-regexps.
   void AllocSub(int n) {
-    ABSL_DCHECK(n >= 0 && static_cast<uint16_t>(n) == n);
+    RE2_DCHECK(n >= 0 && static_cast<uint16_t>(n) == n);
     if (n > 1)
       submany_ = new Regexp*[n];
     nsub_ = static_cast<uint16_t>(n);
@@ -618,7 +625,7 @@ class Regexp {
       CharClass* cc_;
       CharClassBuilder* ccb_;
     };
-    Rune rune_;  // Literal
+    Rune rune_;  // Literal/Token
     int match_id_;  // HaveMatch
     void *the_union_[2];  // as big as any other element, for memset
   };

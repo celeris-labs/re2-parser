@@ -16,13 +16,10 @@
 // As a result, Dump is provided only in the testing
 // library (see BUILD).
 
+#include <stdexcept>
 #include <string>
 
-#include "absl/base/macros.h"
-#include "absl/log/absl_check.h"
-#include "absl/log/absl_log.h"
-#include "absl/strings/str_format.h"
-#include "gtest/gtest.h"
+#include "re2/re2_compat.h"
 #include "re2/regexp.h"
 #include "util/utf.h"
 
@@ -56,8 +53,8 @@ static const char* kOpcodeNames[] = {
 // Create string representation of regexp with explicit structure.
 // Nothing pretty, just for testing.
 static void DumpRegexpAppending(Regexp* re, std::string* s) {
-  if (re->op() < 0 || re->op() >= ABSL_ARRAYSIZE(kOpcodeNames)) {
-    *s += absl::StrFormat("op%d", re->op());
+  if (re->op() < 0 || re->op() >= RE2_ARRAYSIZE(kOpcodeNames)) {
+    AppendFormat(s, "op%d", re->op());
   } else {
     switch (re->op()) {
       default:
@@ -130,7 +127,7 @@ static void DumpRegexpAppending(Regexp* re, std::string* s) {
       break;
     case kRegexpCapture:
       if (re->cap() == 0)
-        ABSL_LOG(DFATAL) << "kRegexpCapture cap() == 0";
+        throw std::runtime_error("kRegexpCapture cap() == 0");
       if (re->name()) {
         s->append(*re->name());
         s->append(":");
@@ -138,7 +135,7 @@ static void DumpRegexpAppending(Regexp* re, std::string* s) {
       DumpRegexpAppending(re->sub()[0], s);
       break;
     case kRegexpRepeat:
-      s->append(absl::StrFormat("%d,%d ", re->min(), re->max()));
+      AppendFormat(s, "%d,%d ", re->min(), re->max());
       DumpRegexpAppending(re->sub()[0], s);
       break;
     case kRegexpCharClass: {
@@ -148,9 +145,9 @@ static void DumpRegexpAppending(Regexp* re, std::string* s) {
         RuneRange rr = *it;
         s->append(sep);
         if (rr.lo == rr.hi)
-          s->append(absl::StrFormat("%#x", rr.lo));
+          AppendFormat(s, "%#x", rr.lo);
         else
-          s->append(absl::StrFormat("%#x-%#x", rr.lo, rr.hi));
+          AppendFormat(s, "%#x-%#x", rr.lo, rr.hi);
         sep = " ";
       }
       break;
@@ -162,7 +159,6 @@ static void DumpRegexpAppending(Regexp* re, std::string* s) {
 std::string Regexp::Dump() {
   // Make sure that we are being called from a unit test.
   // Should cause a link error if used outside of testing.
-  ABSL_CHECK(!::testing::TempDir().empty());
 
   std::string s;
   DumpRegexpAppending(this, &s);
