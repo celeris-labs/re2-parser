@@ -97,8 +97,8 @@ class NFA;
 #include <string>
 #include <string_view>
 
-#include "re2/re2_compat.h"
-#include "util/utf.h"
+#include "re2-parser/re2/re2_compat.h"
+#include "re2-parser/util/utf.h"
 
 namespace re2 {
 

@@ -12,10 +12,10 @@
 #include <stdexcept>
 #include <string>
 
-#include "re2/re2_compat.h"
-#include "re2/pod_array.h"
-#include "re2/regexp.h"
-#include "re2/walker-inl.h"
+#include "re2-parser/re2/re2_compat.h"
+#include "re2-parser/re2/pod_array.h"
+#include "re2-parser/re2/regexp.h"
+#include "re2-parser/re2/walker-inl.h"
 #include "util/utf.h"
 
 namespace re2 {

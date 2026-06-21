@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#include "util/utf.h"
+#include "re2-parser/util/utf.h"
 
 namespace re2 {
 

@@ -6,7 +6,7 @@
 // Regular expression representation.
 // Tested by parse_test.cc
 
-#include "re2/regexp.h"
+#include "re2-parser/re2/regexp.h"
 
 #include <stddef.h>
 #include <stdint.h>

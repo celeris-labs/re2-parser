@@ -16,8 +16,8 @@
 #include <stack>
 #include <stdexcept>
 
-#include "re2/re2_compat.h"
-#include "re2/regexp.h"
+#include "re2-parser/re2/re2_compat.h"
+#include "re2-parser/re2/regexp.h"
 
 namespace re2 {
 

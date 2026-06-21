@@ -25,11 +25,11 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include "re2/pod_array.h"
-#include "re2/regexp.h"
-#include "re2/unicode_casefold.h"
-#include "re2/unicode_groups.h"
-#include "re2/walker-inl.h"
+#include "re2-parser/re2/pod_array.h"
+#include "re2-parser/re2/regexp.h"
+#include "re2-parser/re2/unicode_casefold.h"
+#include "re2-parser/re2/unicode_groups.h"
+#include "re2-parser/re2/walker-inl.h"
 #include "util/utf.h"
 
 #if defined(RE2_USE_ICU)
